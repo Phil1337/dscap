@@ -1,0 +1,179 @@
+---
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    df_print: kable
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.path = 'output/figures/', fig.pos = 'h',echo = FALSE, warning = FALSE, message = FALSE, comments = NA)
+```
+
+
+```{r}
+# install.packages("GGally")
+# install.packages("kableExtra")
+# install.packages("psych")
+```
+
+
+```{r Load Libraries, echo=FALSE, include=FALSE}
+library("ggplot2")
+library("tidyverse")
+library("knitr")
+library("kableExtra")
+```
+
+\vspace{1.5 cm}
+\begin{center}
+\Huge
+{\bf Report Harvard Data Science Capstone }
+
+\vspace{1 cm}
+
+\Large
+{\bf Predicting Earthquake Damage in Nepal }
+
+\vspace{1 cm}
+
+\Large
+Author:
+\Large
+philk1337
+
+\vspace{1 cm}
+2019-02-01
+\vspace{1 cm}
+
+\includegraphics{ressources/nepal}
+\end{center}
+\newpage
+\tableofcontents
+\newpage
+
+
+# Executive summary
+The data used for this analysis represents aspects of building location and construction after an earthqauake in nepal.
+
+It was collected through surveys by the Central Bureau of Statistics that work under the National Planning Commission Secretariat of Nepal. This survey is one of the largest post-disaster datasets ever collected, containing valuable information on earthquake impacts, household conditions, and socio-economic-demographic statistics.
+
+In the analysis we start by getting a descriptive overview of the data in the dataset. Then we will try to find correlations in the data and have a look at the distribution of data types.
+After having an overview of the data we dive in and analyze specific features to find out how specific features like height are correlated with others.
+
+Next part is a description of the methods used to predict the damage category. 
+
+At the end of this report you will find a section with more sophisticated findings and recommendations.
+
+
+```{r data, echo=FALSE}
+train_labels <- read.csv("data/train_labels.csv")
+train_values <- read.csv("data/train_values.csv")
+
+test_values <- read.csv("data/test_values.csv")
+
+train_data <- merge( train_values, train_labels, by = "building_id")
+```
+
+# Analysis
+In a first step we will get an overwiew of the dataset and the variables in the dataset. This will be done in the chapter "descriptive statistics". After that we will try to bring some of them together and find correlations between them in th chapter "correlations"
+
+
+## Descriptive statistics
+```{r}
+library("psych")
+kable(describe(train_data), caption = "Descriptive Statistics", format = "latex", booktabs = TRUE) %>%
+  kableExtra::landscape() %>%
+          kable_styling(latex_options = c("scale_down", "repeat_header")) 
+```
+
+
+## Damage grade
+```{r damage_grade, echo=FALSE}
+barplot(table(train_data$damage_grade), xlab = "Damage grade", ylab = "Frequency", main = "Distribution of damage grade")
+```
+
+It is clearly visible that the most frequent damage_level is "2", followed by damage_level "3" and then "1".
+
+## Class distribution
+First of all lets have a look at the distribution of the classes in the dataset:
+
+```{r type_of_variables}
+class_dist <- table(sapply(train_data,class))
+barplot(class_dist, xlab = "Class", ylab = "Frequency", main = "Distribution of classes")
+```
+
+As we can see there are
+- `r class_dist[[1]]` variables with the class **factor**
+- `r class_dist[[2]]` variables with the class **integer**
+<!-- - `r class_dist[[3]]` variables with the class **logical** -->
+- `r class_dist[[3]]` variables with the class **numeric**, 
+
+
+## Correlations
+First of all we have to remove the correlation-irrelevant variables like **building_id**.
+Then in a next step we will check the correlations between the numeric variables in the dataset.
+In a third step we try to correlate the non-numeric factor variables in the dataset.
+
+## Numeric scatterplot matrix
+Here we visualize the correlation of the variables **age**, **area**, **height** and **count of floors**:
+
+```{r scatter_plot_numeric}
+
+require(GGally)
+
+ggpairs(data=train_data, # data.frame with variables
+        columns=5:8, # columns to plot, default to all.
+        title="Correlations", # title of the plot
+        colour = "count_floors_pre_eq") # aesthetics, ggplot2 style
+
+```
+
+# Methods
+To find the damage grade based of features of the given dataset is seen as a classification problem. Befor starting creating models we had to standadize the numerical features of the dataset to not overweight some of them.
+
+The first approach doing a classification was using a simple **random forest**. Based on the created model we did a prediction with the test-dataset and also plotted the variable importance using VarImpPlot. The result was good but i wanted to do even better.
+So i decided to use the **CARET package** to finetune the parameters with **crossvalidation**.
+
+
+
+Trying another approach i decided to go with a **Support Vector Machine**. Based on some tests it turned out, that using SVM there is a real improvement in RMSE as well as Accuracy of predicted classes.
+
+
+# Results
+## height by damage category
+As visible in the following boxplot only the height of buildings classified with **damage_grade 1** are under the **mean height** of `r mean(train_data$height)`:
+
+\vspace{1 cm}
+
+```{r height_damage-grade, echo=FALSE}
+boxplot(height ~ damage_grade, data = train_data, xlab = "damage grade", ylab = "height", main = "Height by damage grade")
+```
+## height by area
+As visible in the following boxplot only the area of buildings classified with **damage_grade 2** are under the **mean height** of `r mean(train_data$area)`:
+
+\vspace{1 cm}
+
+```{r height_damage-grade_filtered, echo=FALSE}
+barplot(table(train_data[train_data$area>mean(train_data$area),]$damage_grade), xlab = "damage grade", ylab = "height", main = "Frequency by damage grade")
+```
+
+## Prediction using Random Forest
+Using Random forest we get an **accuracy** of around **0.37** which is okay cause of the multiclass-classification problem of predictin 3 classes. Simply guessing 3 damage grades would give an accuracy of 0.125. 
+
+Also the calculated Root Mean Squared Error (**RMSE**) is **0.94** is under 1 and therefore okay but could be optimized for sure.
+
+
+## Prediction using SVM
+Using Support Vector Machines improved the results as follows:
+
+RMSE: 0.66
+Accuracy: 0.56
+
+# Conclusion
+The analysis also clearly shows that there are reliable patterns in the correlation of height, area and damage grade of buildings after an earthquake. Using this data we are able to predict the grade of damage a building will have using the area and the height of a building.
+
+There are good results in predicting the **damage-grade** using Random Forest and even better using SVM. For sure there could be reached even better results by finetuning the used algorithms or using others.
+
+
